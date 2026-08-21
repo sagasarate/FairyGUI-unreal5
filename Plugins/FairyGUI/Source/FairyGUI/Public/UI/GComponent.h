@@ -1,0 +1,266 @@
+#pragma once
+
+#include "GObject.h"
+#include "ScrollPane.h"
+#include "GComponent.generated.h"
+
+class UGController;
+class UTransition;
+class SContainer;
+
+UCLASS(BlueprintType, Blueprintable)
+class FAIRYGUI_API UGComponent : public UGObject
+{
+    GENERATED_BODY()
+
+public:
+    UGComponent();
+    virtual ~UGComponent();
+
+    /** 递归释放容器及其所有子节点 */
+    virtual void Dispose() override;
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    UGObject* AddChild(UGObject* Child);
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    virtual UGObject* AddChildAt(UGObject* Child, int32 Index);
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    void RemoveChild(UGObject* Child);
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    virtual void RemoveChildAt(int32 Index);
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    void RemoveChildren(int32 BeginIndex = 0, int32 EndIndex = -1);
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI", meta = (DeterminesOutputType = "ClassType"))
+    UGObject* GetChildAt(int32 Index, TSubclassOf<UGObject> ClassType = nullptr) const;
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI", meta = (DeterminesOutputType = "ClassType"))
+    UGObject* GetChild(const FString& ChildName, TSubclassOf<UGObject> ClassType = nullptr) const;
+
+    template< class T >
+    FORCEINLINE T* GetChild(const FString& ChildName)
+    {
+        static_assert(TPointerIsConvertibleFromTo<T, const UGObject>::Value, "'T' template parameter to GetChild must be derived from UGObject");
+
+        return Cast<T>(GetChild(ChildName,T::StaticClass()));
+    }
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI", meta = (DeterminesOutputType = "ClassType"))
+    UGObject* GetChildByPath(const FString& Path, TSubclassOf<UGObject> ClassType = nullptr) const;
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI", meta = (DeterminesOutputType = "ClassType"))
+    UGObject* GetChildInGroup(const UGGroup* Group, const FString& ChildName, TSubclassOf<UGObject> ClassType = nullptr) const;
+
+    UGObject* GetChildByID(const FString& ChildID) const;
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    const TArray<UGObject*>& GetChildren() const;
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    int32 GetChildIndex(const UGObject* Child) const;
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    void SetChildIndex(UGObject* Child, int32 Index);
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    int32 SetChildIndexBefore(UGObject* Child, int32 Index);
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    void SwapChildren(UGObject* Child1, UGObject* Child2);
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    void SwapChildrenAt(int32 Index1, int32 Index2);
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    int32 NumChildren() const;
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    bool IsAncestorOf(const UGObject* Obj) const;
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    virtual bool IsChildInView(UGObject* Child) const;
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    virtual int32 GetFirstChildInView() const;
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    UGController* GetControllerAt(int32 Index) const;
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    UGController* GetController(const FString& ControllerName) const;
+
+    const TArray<UGController*>& GetControllers() const { return Controllers; }
+    void AddController(UGController* Controller);
+    void RemoveController(UGController* Controller);
+    void ApplyController(UGController* Controller);
+    void ApplyAllControllers();
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    UTransition* GetTransition(const FString& TransitionName) const;
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    UTransition* GetTransitionAt(int32 Index) const;
+
+    const TArray<UTransition*>& GetTransitions() const { return Transitions; }
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    bool IsOpaque() const;
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    void SetOpaque(bool bInOpaque);
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    const FMargin& GetMargin() const;
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    void SetMargin(const FMargin& InMargin);
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    EChildrenRenderOrder GetChildrenRenderOrder() const;
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    void SetChildrenRenderOrder(EChildrenRenderOrder InChildrenRenderOrder);
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    int32 GetApexIndex() const;
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    void SetApexIndex(int32 InApedIndex);
+
+    //UGObject* getMask() const;
+    //void setMask(UGObject* value, bool inverted = false);
+
+    virtual IHitTest* GetHitArea() const override { return HitArea.Get(); }
+    void SetHitArea(const TSharedPtr<IHitTest>& InHitArea);
+
+    // Tab 焦点导航是否限定在此容器范围内
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    bool IsTabStopScope() const;
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    void SetTabStopScope(bool bEnable);
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    UScrollPane* GetScrollPane() const;
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    float GetViewWidth() const;
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    void SetViewWidth(float InViewWidth);
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    float GetViewHeight() const;
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    void SetViewHeight(float InViewHeight);
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    void SetBoundsChangedFlag();
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    void EnsureBoundsCorrect();
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    void OnClickChild(const FString& ChildName, const FGUIEventDynDelegate& Delegate);
+
+    UPROPERTY(BlueprintAssignable, Category = "FairyGUI|Event")
+    FGUIEventDynMDelegate OnDrop;
+
+    UPROPERTY(BlueprintAssignable, Category = "FairyGUI|Event")
+    FGUIEventDynMDelegate OnScroll;
+   
+    UPROPERTY(BlueprintAssignable, Category = "FairyGUI|Event")
+    FGUIEventDynMDelegate OnScrollEnd;
+
+    UPROPERTY(BlueprintAssignable, Category = "FairyGUI|Event")
+    FGUIEventDynMDelegate OnPullUpRelease;
+
+    UPROPERTY(BlueprintAssignable, Category = "FairyGUI|Event")
+    FGUIEventDynMDelegate OnPullDownRelease;
+
+    UPROPERTY(EditAnywhere, Category = "FairyGUI")
+    FSimpleDynDelegate OnConstructCallback;
+
+    virtual FVector2D GetSnappingPosition(const FVector2D& InPoint);
+
+    // ---- Container 空间坐标转换（考虑 Margin 和滚动偏移）----
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    FVector2D LocalToGlobalInContainer(const FVector2D& InPoint) const;
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    FBox2D LocalToGlobalInContainerRect(const FBox2D& InRect) const;
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    FVector2D GlobalToLocalInContainer(const FVector2D& InPoint) const;
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    FBox2D GlobalToLocalInContainerRect(const FBox2D& InRect) const;
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    FVector2D LocalToRootInContainer(const FVector2D& InPoint) const;
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    FBox2D LocalToRootInContainerRect(const FBox2D& InRect) const;
+
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    FVector2D RootToLocalInContainer(const FVector2D& InPoint) const;
+    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+    FBox2D RootToLocalInContainerRect(const FBox2D& InRect) const;
+
+    //internal use
+    void ChildSortingOrderChanged(UGObject* Child, int32 OldValue, int32 NewValue);
+    void ChildStateChanged(UGObject* Child);
+    void AdjustRadioGroupDepth(UGObject* Child, UGController* Controller);
+
+    virtual void ConstructFromResource() override;
+    void ConstructFromResource(TArray<UGObject*>* ObjectPool, int32 PoolIndex);
+
+    bool bBuildingDisplayList;
+
+protected:
+	virtual void CreateDisplayObject() override;
+    virtual void ConstructExtension(FByteBuffer* Buffer);
+    virtual void OnConstruct();
+    UFUNCTION(BlueprintImplementableEvent, Category = "FairyGUI",  meta = ( DisplayName = "OnConstruct"))
+    void K2_OnConstruct();
+    virtual void SetupAfterAdd(FByteBuffer* Buffer, int32 BeginPos) override;
+    virtual void HandleSizeChanged() override;
+    virtual void HandleGrayedChanged() override;
+    virtual void HandleControllerChanged(UGController* Controller) override;
+
+    virtual void UpdateBounds();
+    void SetBounds(float ax, float ay, float aw, float ah);
+
+    void SetupOverflow(EOverflowType InOverflow);
+    void SetupScroll(FByteBuffer* Buffer);
+
+    UPROPERTY(Transient)
+    TArray<UGObject*> Children;
+    UPROPERTY(Transient)
+    TArray<UGController*> Controllers;
+    UPROPERTY(Transient)
+    TArray<UTransition*> Transitions;
+    UPROPERTY(Transient)
+    UScrollPane* ScrollPane;
+
+    TSharedPtr<SContainer> RootContainer;
+    TSharedPtr<SContainer> Container;
+    FMargin Margin;
+    FVector2D AlignOffset;
+    EChildrenRenderOrder ChildrenRenderOrder;
+    int32 ApexIndex;
+    uint8 bBoundsChanged : 1;
+    uint8 bTrackBounds : 1;
+    TSharedPtr<IHitTest> HitArea;
+
+private:
+    int32 GetInsertPosForSortingChild(UGObject* Child);
+    int32 MoveChild(UGObject* Child, int32 OldIndex, int32 NewIndex);
+
+    void BuildNativeDisplayList(bool bImmediatelly = false);
+
+    void OnAddedToStageHandler(UEventContext* Context);
+    void OnRemovedFromStageHandler(UEventContext* Context);
+
+    int32 SortingChildCount;
+    UGController* ApplyingController;
+
+    FTimerHandle UpdateBoundsTimerHandle;
+    FTimerHandle BuildDisplayListTimerHandle;
+
+    friend class UScrollPane;
+};

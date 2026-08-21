@@ -1,0 +1,25 @@
+{
+  "font": "Microsoft YaHei",
+  "fontSize": 12,
+  "textColor": "#000000",
+  "fontAdjustment": false,
+  "colorScheme": [
+    "Custom color #FF0000"
+  ],
+  "fontSizeScheme": [
+    "Custom font size 30"
+  ],
+  "fontScheme": [
+    "默认字体"
+  ],
+  "scrollBars": {
+    "horizontal": "ui://9leh0eyfi3s65i",
+    "vertical": "ui://9leh0eyfi3s65w",
+    "defaultDisplay": "visible"
+  },
+  "tipsRes": "",
+  "buttonClickSound": "",
+  "pivot": "default",
+  "listClearOnPublish": false,
+  "fileName": "Common"
+}

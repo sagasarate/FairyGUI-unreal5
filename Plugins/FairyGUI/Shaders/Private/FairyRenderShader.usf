@@ -1,0 +1,46 @@
+#include "/Plugin/FairyGUI/Private/FairyCommon.ush"
+
+struct FVSInput {
+  float4 InTexCoords : ATTRIBUTE0; // xy=TexCoords, z=ObjectIndex
+  float2 InPosition : ATTRIBUTE1;
+  float4 InColor : ATTRIBUTE2;
+};
+
+struct FVSOutput {
+  float4 Position : SV_POSITION;
+  float2 TexCoords : TEXCOORD0;
+  float4 Color : COLOR0;
+  float Saturation : TEXCOORD1;
+  nointerpolation uint ColorOption : TEXCOORD2;
+};
+
+FVSOutput MainVS(FVSInput Input) {
+  uint ObjectIndex = asuint(Input.InTexCoords.z);
+  FObjectData Data = ObjectDataBuffer[ObjectIndex];
+
+  FVSOutput Output;
+  float2 WorldPos =
+      mul(float4(Input.InPosition, 0, 1), Data.LocalToWorld).xy + ViewOffset;
+  Output.Position = mul(float4(WorldPos, 0, 1), ViewProjectionMatrix);
+  Output.TexCoords = Input.InTexCoords.xy;
+  Output.Color = Input.InColor;
+  Output.Color.a *= Data.Alpha;
+  Output.Saturation = Data.Saturation;
+  Output.ColorOption = Data.ColorOption;
+  return Output;
+}
+
+Texture2D RenderTexture;
+SamplerState RenderTextureSampler;
+
+float4 MainPS(FVSOutput Input) : SV_Target0 {
+  float4 TexColor = RenderTexture.Sample(RenderTextureSampler, Input.TexCoords);
+  TexColor.rgb = LinearToSRGB(TexColor.rgb);
+  float4 Color =
+      float4(Input.Color.rgb * TexColor.rgb, Input.Color.a * TexColor.a);
+  clip(Color.a - AlphaMaskThreshold);
+  float Gray = dot(Color.rgb, float3(0.299, 0.587, 0.114));
+  Color.rgb = lerp(float3(Gray, Gray, Gray), Color.rgb, Input.Saturation);
+  if (Input.ColorOption) Color.rgb *= Color.a;
+  return Color;
+}

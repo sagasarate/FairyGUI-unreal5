@@ -1,0 +1,50 @@
+{
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "label": "Subtask:GenClangDatabase",
+                "group": "none",
+                "command": "E:\\Epic Games\\UE_5.7\\Engine\\Binaries\\DotNET\\UnrealBuildTool\\UnrealBuildTool.exe",
+                "args": [
+                    "FGUITestProjectEditor",
+                    "Win64",
+                    "DebugGame",
+                    "-SkipBuild",
+                    "-project=${workspaceFolder}/FGUITestProject.uproject",
+                    "-game",
+                    "-engine",
+                    "-mode=GenerateClangDatabase"
+                ],
+                "problemMatcher": "$msCompile",
+                "type": "shell",
+                "options": {
+                    "cwd": "E:\\Epic Games\\UE_5.7"
+                }
+            },
+            {
+                "label": "Subtask:MoveCompileCommands",
+                "group": "none",
+                "command": "move",
+                "args": [
+                    "-Force",
+                    "compile_commands.json",
+                    "${workspaceFolder}/.vscode/compile_commands.json"
+                ],
+                "problemMatcher": "$msCompile",
+                "type": "shell",
+                "options": {
+                    "cwd": "E:\\Epic Games\\UE_5.7"
+                }
+            },
+            {
+                "label": "Gen Compile Commands",
+                "group": "none",
+                "dependsOn": [
+                    "Subtask:GenClangDatabase",
+                    "Subtask:MoveCompileCommands"
+                ],
+                "dependsOrder": "sequence",
+                "problemMatcher": []
+            }
+        ]
+    }

@@ -1,0 +1,115 @@
+#include "/Plugin/FairyGUI/Private/FairyCommon.ush"
+
+// 取 RGB 三通道中位数，用于 MSDF 距离解码
+float median(float3 v) { return max(min(v.r, v.g), min(max(v.r, v.g), v.b)); }
+
+struct FVSInput
+{
+  float4 InTexCoords : ATTRIBUTE0; // xy=TexCoords, z=ObjectIndex
+  float2 InPosition : ATTRIBUTE1;
+  float4 InColor : ATTRIBUTE2;
+};
+
+struct FVSOutput
+{
+  float4 Position : SV_POSITION;
+  float2 TexCoords : TEXCOORD0;
+  float4 Color : COLOR0;
+  float Saturation : TEXCOORD1;
+  nointerpolation float SdfBias : TEXCOORD2;
+  nointerpolation float SdfPixelSpread : TEXCOORD3;
+  float4 OutlineColor : TEXCOORD4;
+  nointerpolation float OutlineBias : TEXCOORD5;
+  nointerpolation int DrawType
+      : TEXCOORD6; // 1=单通道SDF, 2=MSDF多通道, 3=无纹理
+  nointerpolation uint ColorOption : TEXCOORD7;
+};
+
+FVSOutput MainVS(FVSInput Input)
+{
+  uint ObjectIndex = asuint(Input.InTexCoords.z);
+  FObjectData Data = ObjectDataBuffer[ObjectIndex];
+
+  FVSOutput Output;
+  float2 WorldPos =
+      mul(float4(Input.InPosition, 0, 1), Data.LocalToWorld).xy + ViewOffset;
+  Output.Position = mul(float4(WorldPos, 0, 1), ViewProjectionMatrix);
+  Output.TexCoords = Input.InTexCoords.xy;
+  Output.Color = Input.InColor;
+  Output.Color.a *= Data.Alpha;
+  Output.Saturation = Data.Saturation;
+  Output.SdfBias = Data.SdfBias;
+  Output.SdfPixelSpread = Data.SdfPixelSpread;
+  Output.OutlineColor = Data.OutlineColor;
+  Output.OutlineBias = Data.OutlineBias;
+  Output.DrawType = Data.TextDrawType;
+  Output.ColorOption = Data.ColorOption;
+  return Output;
+}
+
+Texture2D FontTexture;
+SamplerState FontTextureSampler;
+
+float4 MainPS(FVSOutput Input) : SV_Target0
+{
+  float4 Color;
+  if (Input.DrawType == 5)
+  {
+    // 无纹理绘制
+    Color = Input.Color;
+  }
+  else
+  {
+    float4 TexSample = FontTexture.Sample(FontTextureSampler, Input.TexCoords);
+
+    // 解码距离值
+    float Dist;
+    if (Input.DrawType == 4) // MSDF 多通道
+      Dist = median(TexSample.rgb);
+    else // 单通道 SDF
+      Dist = TexSample.a;
+
+    // 使用稳定的UV导数计算AA平滑范围（替代fwidth(Dist)）
+    // fwidth(Dist)在SDF纹理上因Hint/笔画方向不同而产生剧烈跳变，
+    // 导致微软雅黑等字体笔画粗细不均。UV坐标在屏幕上是线性连续的，
+    // 其导数是稳定的，结合SdfPixelSpread可精确还原屏幕像素对应的距离场步长
+    float2 TexDDX = ddx(Input.TexCoords);
+    float2 TexDDY = ddy(Input.TexCoords);
+    // MSDF官方推荐：对轴对齐字体Quad用max而非sqrt，避免对角线方向AA过宽
+    float PixelDist = max(length(TexDDX), length(TexDDY));
+    // SdfPixelSpread = 1.0f / SizeU_UV，将UV空间步长转为距离场空间步长
+    float Smoothing = max(PixelDist * Input.SdfPixelSpread, 0.0001);
+    //  smoothstep会使AA宽度翻倍导致字体发虚/变细/边缘糊。
+    //  UE Slate SDF Shader默认使用saturate((Dist-Bias)/Width+0.5)，AA宽度精准。
+    float fillAlpha =
+        saturate((Dist - Input.SdfBias) / Smoothing + 0.5);
+
+    // 描边层：低阈值外扩，仅 OutlineColor.a > 0 时可见
+    float OutlineCov = 0.0;
+    if (Input.OutlineColor.a > 0.0)
+    {
+      float outlineAlpha = saturate(
+          (Dist - Input.OutlineBias) / Smoothing + 0.5);
+      OutlineCov = outlineAlpha * (1.0 - fillAlpha);
+    }
+
+    // 合成：描边在下，填充在上
+    float sa = OutlineCov * Input.OutlineColor.a + fillAlpha * Input.Color.a;
+    float3 sc;
+    if (sa > 0.0001)
+      sc = (Input.OutlineColor.rgb * OutlineCov * Input.OutlineColor.a +
+            Input.Color.rgb * fillAlpha * Input.Color.a) /
+           sa;
+    else
+      sc = float3(0, 0, 0);
+
+    Color = float4(sc, sa);
+  }
+  // 注意：SDF 距离场纹理不是 sRGB 颜色数据，不做 LinearToSRGB
+  float Gray = dot(Color.rgb, float3(0.299, 0.587, 0.114));
+  Color.rgb = lerp(float3(Gray, Gray, Gray), Color.rgb, Input.Saturation);
+  clip(Color.a - AlphaMaskThreshold);
+  if (Input.ColorOption)
+    Color.rgb *= Color.a;
+  return Color;
+}

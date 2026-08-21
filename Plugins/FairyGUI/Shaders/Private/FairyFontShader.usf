@@ -1,0 +1,58 @@
+#include "/Plugin/FairyGUI/Private/FairyCommon.ush"
+
+struct FVSInput {
+  float4 InTexCoords : ATTRIBUTE0; // xy=TexCoords, z=ObjectIndex
+  float2 InPosition : ATTRIBUTE1;
+  float4 InColor : ATTRIBUTE2;
+};
+
+struct FVSOutput {
+  float4 Position : SV_POSITION;
+  float2 TexCoords : TEXCOORD0;
+  float4 Color : COLOR0;
+  float Saturation : TEXCOORD1;
+  nointerpolation int DrawType : TEXCOORD2; // 3=无纹理
+  nointerpolation uint ColorOption : TEXCOORD3;
+};
+
+FVSOutput MainVS(FVSInput Input) {
+  uint ObjectIndex = asuint(Input.InTexCoords.z);
+  FObjectData Data = ObjectDataBuffer[ObjectIndex];
+
+  FVSOutput Output;
+  float2 WorldPos =
+      mul(float4(Input.InPosition, 0, 1), Data.LocalToWorld).xy + ViewOffset;
+  Output.Position = mul(float4(WorldPos, 0, 1), ViewProjectionMatrix);
+  Output.TexCoords = Input.InTexCoords.xy;
+  Output.Color = Input.InColor;
+  Output.Color.a *= Data.Alpha;
+  Output.Saturation = Data.Saturation;
+  Output.DrawType = Data.TextDrawType;
+  Output.ColorOption = Data.ColorOption;
+  return Output;
+}
+
+Texture2D FontTexture;
+SamplerState FontTextureSampler;
+
+float4 MainPS(FVSOutput Input) : SV_Target0 {
+  float4 Color;
+  if (Input.DrawType == 0) {
+    // AlphaBitmap: 仅使用纹理 Alpha 通道，颜色由顶点色决定（顶点色已正确，不做 LinearToSRGB）
+    float Glyph = FontTexture.Sample(FontTextureSampler, Input.TexCoords).a;
+    Color = float4(Input.Color.rgb, Input.Color.a * Glyph);
+  } else if (Input.DrawType == 1) {
+    // ColorBitmap: 纹理 RGBA 是 sRGB 颜色数据，采样后是线性值，需手动编码为 sRGB 输出
+    Color = FontTexture.Sample(FontTextureSampler, Input.TexCoords);
+    Color.rgb = LinearToSRGB(Color.rgb);
+    Color = Color * Input.Color;    
+  } else {
+    // Line / 无纹理: 纯顶点色，VET_Color 展开值本身与显示期望一致，不做转换
+    Color = Input.Color;
+  }
+  clip(Color.a - AlphaMaskThreshold);
+  float Gray = dot(Color.rgb, float3(0.299, 0.587, 0.114));
+  Color.rgb = lerp(float3(Gray, Gray, Gray), Color.rgb, Input.Saturation);
+  if (Input.ColorOption) Color.rgb *= Color.a;
+  return Color;
+}

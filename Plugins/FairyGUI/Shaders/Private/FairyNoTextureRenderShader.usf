@@ -1,0 +1,38 @@
+#include "/Plugin/FairyGUI/Private/FairyCommon.ush"
+
+struct FVSInput
+{
+    float4 InTexCoords : ATTRIBUTE0;  // xy=TexCoords, z=ObjectIndex
+    float2 InPosition  : ATTRIBUTE1;
+    float4 InColor     : ATTRIBUTE2;
+};
+
+struct FVSOutput
+{
+    float4 Position : SV_POSITION;
+    float4 Color    : COLOR0;
+};
+
+FVSOutput MainVS(FVSInput Input)
+{
+    uint ObjectIndex = asuint(Input.InTexCoords.z);
+    FObjectData Data = ObjectDataBuffer[ObjectIndex];
+
+    FVSOutput Output;
+    float2 WorldPos = mul(float4(Input.InPosition, 0, 1), Data.LocalToWorld).xy + ViewOffset;
+    Output.Position = mul(float4(WorldPos, 0, 1), ViewProjectionMatrix);
+    Output.Color = Input.InColor;
+    Output.Color.a *= Data.Alpha;
+    float Gray = dot(Output.Color.rgb, float3(0.299, 0.587, 0.114));
+    Output.Color.rgb = lerp(float3(Gray, Gray, Gray), Output.Color.rgb, Data.Saturation);
+    if (Data.ColorOption) Output.Color.rgb *= Output.Color.a;
+    return Output;
+}
+
+
+// 无纹理渲染：纯顶点色，VET_Color 展开值与 sRGB 显示期望一致，不做额外转换
+float4 MainPS(FVSOutput Input) : SV_Target0
+{
+    clip(Input.Color.a - AlphaMaskThreshold);
+    return Input.Color;
+}

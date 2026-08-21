@@ -1,0 +1,38 @@
+#pragma once
+
+#include "/Engine/Private/Common.ush"
+
+// 所有 FairyGUI shader 共用的 per-instance 数据
+// C++ 侧对应: FFairyFontShader::FObjectData (FairyFontShader.h)
+struct FObjectData
+{
+    float4x4 LocalToWorld;
+    float4   OutlineColor;
+    float    Alpha;
+    float    Saturation;
+    float    SdfBias;
+    float    SdfPixelSpread;
+    float    OutlineBias;
+    int      TextDrawType;
+    uint     ColorOption;
+    float    _Pad; // HLSL StructuredBuffer stride 向上取整到 16 字节对齐
+};
+
+StructuredBuffer<FObjectData> ObjectDataBuffer;
+float4x4 ViewProjectionMatrix;
+float2   ViewOffset;
+
+// 手动 sRGB → Linear 解码：当纹理未标记 sRGB 导致 GPU 不做自动转换时使用
+// 注意：若纹理已标记 sRGB（GPU 自动转换），调用此函数会导致颜色偏深
+float3 SRGBToLinear(float3 c)
+{
+	return (c <= 0.04045) * (c / 12.92) + (c > 0.04045) * pow((c + 0.055) / 1.055, 2.4);
+}
+
+// Linear → sRGB 编码：自定义 RHI 管线渲染到 Linear RT 时，需手动做 gamma 编码
+// 以匹配显示设备的 sRGB 预期（Slate 内置管线会自动完成此转换）
+float3 LinearToSRGB(float3 c)
+{
+	return (c <= 0.0031308) * (c * 12.92) + (c > 0.0031308) * (1.055 * pow(c, 1.0 / 2.4) - 0.055);
+}
+float AlphaMaskThreshold;

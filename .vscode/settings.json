@@ -1,0 +1,38 @@
+{
+  "files.watcherExclude": {
+    "**/.git/**": true,
+    "**/Binaries/**": true,
+    "**/DerivedDataCache/**": true,
+    "**/Intermediate/**": true,
+    "**/Saved/**": true,
+    "**/Plugins/**/Intermediate/**": true,
+    "**/Plugins/**/Binaries/**": true
+  },
+  "files.exclude": {
+    "**/Binaries/**": true,
+    "**/DerivedDataCache/**": true,
+    "**/Intermediate/**": true,
+    "**/Saved/**": true
+  },
+  "search.exclude": {
+    "**/Binaries/**": true,
+    "**/DerivedDataCache/**": true,
+    "**/Intermediate/**": true,
+    "**/Saved/**": true
+  },
+  "typescript.tsc.autoDetect": "off",
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "C_Cpp.autocomplete": "disabled",
+  "C_Cpp.errorSquiggles": "disabled",
+  "clangd.arguments": [
+    "--compile-commands-dir=.vscode",
+    "-pretty",
+    "--clang-tidy",
+    "-j=12",
+    "--header-insertion=iwyu",
+    "--all-scopes-completion",
+    "--completion-style=detailed",
+    "--pch-storage=memory",
+    "--query-driver=E:/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/**/bin/Hostx64/x64/cl.exe"
+  ]
+}

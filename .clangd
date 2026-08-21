@@ -1,0 +1,32 @@
+CompileFlags:
+  Add: [
+    "-D__clang__",
+    "-DCORE_API=",
+    "-DENGINE_API=",
+    "-DPROJECT_API=",
+    "-DUCLASS(...)= ",
+    "-DDUNGEONSIM_API=",
+    "-DGENERATED_BODY(...)= ",
+    "-DGENERATED_UCLASS_BODY(...)= ",
+    "-DUPROPERTY(...)= ",
+    "-DUFUNCTION(...)= ",
+    "-DUMETA(...)= ",
+    "-DUE_BUILD_DEVELOPMENT=1",    
+    "--target=x86_64-pc-windows-msvc", # 强制模拟 Windows 环境
+    "-fms-compatibility",             # 开启微软兼容模式
+    "-Wno-microsoft-cpp-extension",
+    "-Wno-invalid-token-paste",
+    "-Wno-microsoft-enum-forward-reference",
+    "-Wno-language-extension-token",
+    "-std=c++20"
+  ]
+  Remove: [ 
+    "/FI*SharedPCH*", 
+    "/Yc*", 
+    "/Yu*", 
+    "-fno-ms-compatibility" 
+  ]
+Diagnostics:
+  Suppress: [builtin_definition]
+Index:
+  Background: Build
