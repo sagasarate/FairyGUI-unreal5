@@ -110,13 +110,13 @@ UGObject* UGRoot::GetFocusedObject() const
 		return nullptr;
 	}
 
-	const SDisplayObject* FocusedDisp = FullScreenCanvas->GetFocusedObject();
-	if (!FocusedDisp)
+	TSharedPtr<const SDisplayObject> FocusedDisp = FullScreenCanvas->GetFocusedObject();
+	if (!FocusedDisp.IsValid())
 	{
 		return nullptr;
 	}
 
-	return SDisplayObject::GetGObject(const_cast<SDisplayObject*>(FocusedDisp)->AsShared());
+	return SDisplayObject::GetGObject(const_cast<SDisplayObject*>(FocusedDisp.Get())->AsShared());
 }
 
 void UGRoot::ShowWindow(UGWindow* Window)

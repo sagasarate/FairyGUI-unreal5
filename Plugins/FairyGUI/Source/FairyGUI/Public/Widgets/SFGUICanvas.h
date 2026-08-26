@@ -48,7 +48,7 @@ public:
 	// 焦点管理
 	void				  SetFocus(const SDisplayObject* InWidget, EFocusCause InCause = EFocusCause::SetDirectly);
 	void				  ClearFocus();
-	const SDisplayObject* GetFocusedObject() const { return m_FocusedObject; }
+	TSharedPtr<const SDisplayObject> GetFocusedObject() const { return m_FocusedObject.Pin(); }
 
 	// MouseCapture 机制
 	static void						  CaptureMouse(const TSharedPtr<SDisplayObject>& InCaptor);
@@ -66,11 +66,14 @@ private:
 	static TWeakPtr<SDisplayObject> s_MouseCaptor;
 
 	// Hover 追踪
-	TArray<const SDisplayObject*> m_LastHoveredPath;
-	static void					  BuildAncestorPath(const SDisplayObject* Leaf, TArray<const SDisplayObject*>& OutPath);
+	// ponytail: 持有 TSharedPtr 而非裸指针——切关卡时旧 UI 的 SDisplayObject 会被销毁，
+	// 裸指针缓存会悬垂（UAF 崩溃）；共享引用让对象延寿到下一次鼠标移动，届时 OnMouseLeave 安全走空分支
+	TArray<TSharedPtr<const SDisplayObject>> m_LastHoveredPath;
+	static void								 BuildAncestorPath(
+								   const SDisplayObject* Leaf, TArray<TSharedPtr<const SDisplayObject>>& OutPath);
 
-	// 焦点追踪
-	const SDisplayObject* m_FocusedObject = nullptr;
+	// 焦点追踪（弱引用：对象销毁后自动失效，避免 UAF）
+	TWeakPtr<const SDisplayObject> m_FocusedObject;
 
 	// Tab 导航：在 FGUI 树中查找下一个/上一个 TabStop
 	const SDisplayObject* FindNextTabStop(const SDisplayObject* Current, bool bForward) const;

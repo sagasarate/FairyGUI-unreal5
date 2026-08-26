@@ -930,11 +930,11 @@ bool UGObject::Focused(bool bDescendant)
 	if (!Canvas.IsValid())
 		return false;
 
-	const SDisplayObject* FocusedObj = Canvas->GetFocusedObject();
-	if (!FocusedObj)
+	TSharedPtr<const SDisplayObject> FocusedObj = Canvas->GetFocusedObject();
+	if (!FocusedObj.IsValid())
 		return false;
 
-	if (FocusedObj == DisplayObject.Get())
+	if (FocusedObj.Get() == DisplayObject.Get())
 		return true;
 
 	if (bDescendant)

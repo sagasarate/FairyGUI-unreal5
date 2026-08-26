@@ -108,9 +108,9 @@ TOptional<EMouseCursor::Type> SFGUICanvas::GetCursor() const
 		if (Captor->GetMouseCursor().IsSet())
 			return Captor->GetMouseCursor();
 	}
-	if (m_LastHoveredPath.Num() > 0)
+	if (m_LastHoveredPath.Num() > 0 && m_LastHoveredPath.Last().IsValid())
 	{
-		const SDisplayObject* Hovered = m_LastHoveredPath.Last();
+		const SDisplayObject* Hovered = m_LastHoveredPath.Last().Get();
 		if (Hovered->GetMouseCursor().IsSet())
 			return Hovered->GetMouseCursor();
 	}
@@ -144,10 +144,12 @@ static FReply ToSlateReply(bool bHandled)
 	return bHandled ? FReply::Handled() : FReply::Unhandled();
 }
 
-void SFGUICanvas::BuildAncestorPath(const SDisplayObject* Leaf, TArray<const SDisplayObject*>& OutPath)
+void SFGUICanvas::BuildAncestorPath(const SDisplayObject* Leaf, TArray<TSharedPtr<const SDisplayObject>>& OutPath)
 {
 	OutPath.Reset();
-	for (const SDisplayObject* Ptr = Leaf; Ptr; Ptr = Ptr->GetParent().Get())
+	// const AsShared() 返回 TSharedRef<const T>，可隐式转 TSharedPtr
+	TSharedPtr<const SDisplayObject> Ptr = Leaf->AsShared();
+	for (; Ptr.IsValid(); Ptr = Ptr->GetParent())
 	{
 		OutPath.Add(Ptr);
 	}
@@ -156,26 +158,26 @@ void SFGUICanvas::BuildAncestorPath(const SDisplayObject* Leaf, TArray<const SDi
 }
 
 static void UpdateHoverPath(
-	TArray<const SDisplayObject*>& LastPath, const TArray<const SDisplayObject*>& CurPath,
+	TArray<TSharedPtr<const SDisplayObject>>& LastPath, const TArray<TSharedPtr<const SDisplayObject>>& CurPath,
 	const FPointerEvent& MouseEvent)
 {
 	// 反向遍历旧路径（叶到根）：不在新路径中的 → OnMouseLeave
+	// ponytail: 持有共享引用，即使对象已脱离 UI 树（如切关卡后），此处调用仍安全；
+	// OnMouseLeave 内部 GetGObject 对已 GC 的 UGObject 返回 nullptr，自然走空分支
 	for (int32 i = LastPath.Num() - 1; i >= 0; --i)
 	{
-		const SDisplayObject* OldWidget = LastPath[i];
-		if (!CurPath.Contains(OldWidget))
+		if (!CurPath.Contains(LastPath[i]))
 		{
-			const_cast<SDisplayObject*>(OldWidget)->OnMouseLeave(MouseEvent);
+			const_cast<SDisplayObject*>(LastPath[i].Get())->OnMouseLeave(MouseEvent);
 		}
 	}
 
 	// 正向遍历新路径（根到叶）：不在旧路径中的 → OnMouseEnter
 	for (int32 i = 0; i < CurPath.Num(); ++i)
 	{
-		const SDisplayObject* NewWidget = CurPath[i];
-		if (!LastPath.Contains(NewWidget))
+		if (!LastPath.Contains(CurPath[i]))
 		{
-			const_cast<SDisplayObject*>(NewWidget)->OnMouseEnter(MouseEvent);
+			const_cast<SDisplayObject*>(CurPath[i].Get())->OnMouseEnter(MouseEvent);
 		}
 	}
 
@@ -223,7 +225,7 @@ FReply SFGUICanvas::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent
 
 	const SDisplayObject* Target = HitTest(MouseEvent.GetScreenSpacePosition());
 
-	TArray<const SDisplayObject*> CurPath;
+	TArray<TSharedPtr<const SDisplayObject>> CurPath;
 	if (Target)
 		BuildAncestorPath(Target, CurPath);
 	UpdateHoverPath(m_LastHoveredPath, CurPath, MouseEvent);
@@ -243,8 +245,8 @@ FReply SFGUICanvas::OnMouseButtonDoubleClick(const FGeometry& MyGeometry, const 
 
 void SFGUICanvas::OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	const SDisplayObject*		  Target = HitTest(MouseEvent.GetScreenSpacePosition());
-	TArray<const SDisplayObject*> CurPath;
+	const SDisplayObject* Target = HitTest(MouseEvent.GetScreenSpacePosition());
+	TArray<TSharedPtr<const SDisplayObject>> CurPath;
 	if (Target)
 		BuildAncestorPath(Target, CurPath);
 	UpdateHoverPath(m_LastHoveredPath, CurPath, MouseEvent);
@@ -253,7 +255,7 @@ void SFGUICanvas::OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent&
 void SFGUICanvas::OnMouseLeave(const FPointerEvent& MouseEvent)
 {
 	// 鼠标离开 Canvas：清空整条路径
-	TArray<const SDisplayObject*> EmptyPath;
+	TArray<TSharedPtr<const SDisplayObject>> EmptyPath;
 	UpdateHoverPath(m_LastHoveredPath, EmptyPath, MouseEvent);
 }
 
@@ -272,9 +274,9 @@ FReply SFGUICanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKe
 	// ESC：先发给焦点控件，未处理则清除焦点
 	if (InKeyEvent.GetKey() == EKeys::Escape)
 	{
-		if (m_FocusedObject)
+		if (auto Focused = m_FocusedObject.Pin())
 		{
-			bool bHandled = const_cast<SDisplayObject*>(m_FocusedObject)->OnKeyDown(InKeyEvent);
+			bool bHandled = const_cast<SDisplayObject*>(Focused.Get())->OnKeyDown(InKeyEvent);
 			if (bHandled)
 				return FReply::Handled();
 		}
@@ -285,15 +287,16 @@ FReply SFGUICanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKe
 	// Tab：先发给焦点控件，未处理则做焦点导航
 	if (InKeyEvent.GetKey() == EKeys::Tab)
 	{
-		if (m_FocusedObject)
+		TSharedPtr<const SDisplayObject> CurFocus = m_FocusedObject.Pin();
+		if (CurFocus.IsValid())
 		{
-			bool bHandled = const_cast<SDisplayObject*>(m_FocusedObject)->OnKeyDown(InKeyEvent);
+			bool bHandled = const_cast<SDisplayObject*>(CurFocus.Get())->OnKeyDown(InKeyEvent);
 			if (bHandled)
 				return FReply::Handled();
 		}
 
 		const bool			  bForward = !InKeyEvent.IsShiftDown();
-		const SDisplayObject* Next = FindNextTabStop(m_FocusedObject, bForward);
+		const SDisplayObject* Next = FindNextTabStop(CurFocus.Get(), bForward);
 		if (Next)
 			SetFocus(Next, EFocusCause::Navigation);
 		else
@@ -301,9 +304,9 @@ FReply SFGUICanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKe
 		return FReply::Handled();
 	}
 
-	if (m_FocusedObject)
+	if (auto Focused = m_FocusedObject.Pin())
 	{
-		const_cast<SDisplayObject*>(m_FocusedObject)->OnKeyDown(InKeyEvent);
+		const_cast<SDisplayObject*>(Focused.Get())->OnKeyDown(InKeyEvent);
 		// 画布挂在 SViewport 的 ChildSlot 内（AddViewportWidgetContent → ViewportOverlayWidget），
 		// 焦点路径必然包含 SViewport。焦点对象未处理的按键（如游戏快捷键）若继续冒泡，
 		// 会到达 SViewport::OnKeyDown 被引擎当作 InputAction 响应，因此只要 FairyGUI 持有焦点就一律消费
@@ -314,16 +317,16 @@ FReply SFGUICanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKe
 
 FReply SFGUICanvas::OnKeyChar(const FGeometry& MyGeometry, const FCharacterEvent& InCharacterEvent)
 {
-	if (m_FocusedObject)
-		return ToSlateReply(const_cast<SDisplayObject*>(m_FocusedObject)->OnKeyChar(InCharacterEvent));
+	if (auto Focused = m_FocusedObject.Pin())
+		return ToSlateReply(const_cast<SDisplayObject*>(Focused.Get())->OnKeyChar(InCharacterEvent));
 	return FReply::Unhandled();
 }
 
 FReply SFGUICanvas::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
 {
-	if (m_FocusedObject)
+	if (auto Focused = m_FocusedObject.Pin())
 	{
-		const_cast<SDisplayObject*>(m_FocusedObject)->OnKeyUp(InKeyEvent);
+		const_cast<SDisplayObject*>(Focused.Get())->OnKeyUp(InKeyEvent);
 		// 同 OnKeyDown：阻止按键松开事件冒泡到 SViewport，避免触发 InputAction 的 Completed 阶段
 		return FReply::Handled();
 	}
@@ -334,17 +337,22 @@ FReply SFGUICanvas::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& InKeyE
 
 void SFGUICanvas::SetFocus(const SDisplayObject* InWidget, EFocusCause InCause)
 {
-	if (InWidget == m_FocusedObject)
+	TSharedPtr<const SDisplayObject> NewWidget;
+	// 弱引用缓存：Pin 失败（对象已销毁）视为无焦点，避免对悬垂指针调用 SupportsKeyboardFocus
+	if (InWidget && InWidget->SupportsKeyboardFocus())
+		NewWidget = InWidget->AsShared();
+
+	TSharedPtr<const SDisplayObject> OldFocus = m_FocusedObject.Pin();
+	if (OldFocus == NewWidget)
 		return;
 
-	const SDisplayObject* OldFocus = m_FocusedObject;
-	m_FocusedObject = (InWidget && InWidget->SupportsKeyboardFocus()) ? InWidget : nullptr;
+	m_FocusedObject = NewWidget;
 
-	if (OldFocus)
-		const_cast<SDisplayObject*>(OldFocus)->OnFocusLost(InCause);
+	if (OldFocus.IsValid())
+		const_cast<SDisplayObject*>(OldFocus.Get())->OnFocusLost(InCause);
 
-	if (m_FocusedObject)
-		const_cast<SDisplayObject*>(m_FocusedObject)->OnFocusReceived(InCause);
+	if (NewWidget.IsValid())
+		const_cast<SDisplayObject*>(NewWidget.Get())->OnFocusReceived(InCause);
 }
 
 void SFGUICanvas::ClearFocus()
