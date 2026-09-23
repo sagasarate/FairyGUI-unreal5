@@ -1446,7 +1446,7 @@ void UTransition::DecodeValue(FTransitionItem* item, FByteBuffer* Buffer, FTrans
 			auto& str = Buffer->ReadS();
 			if (!str.IsEmpty())
 			{
-				FString Key = FString::Printf(TEXT("%s_%s_trans_text"), *Owner->GetPackageItem()->ID, *Name, *item->TargetID);
+				FString Key = FString::Printf(TEXT("%s_%s_trans_text"), *Owner->GetPackageItem()->ID, *Name);
 				auto	txt = ToLocText(*Owner->GetPackageName(), *FString::Printf(TEXT("%s_text"), *Key), *str);
 				item->TextData = txt;
 			}

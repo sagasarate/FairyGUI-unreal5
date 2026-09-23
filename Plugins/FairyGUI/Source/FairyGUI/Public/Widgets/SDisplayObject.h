@@ -35,10 +35,11 @@ protected:
 	bool m_bRebuildMesh : 1 = false;
 	bool m_bEnbaleHitTest : 1 = false;
 
-	FVector2D m_Position;
-	FVector2D m_Size;
-	FVector2D m_Scale;
-	FVector2D m_Skew;
+	// FVector2D 默认构造不初始化内存（UE TVector2() = default），堆上垃圾值会让 skew 分支随机激活产生歪斜，必须显式零初始化
+	FVector2D m_Position = FVector2D::ZeroVector;
+	FVector2D m_Size = FVector2D::ZeroVector;
+	FVector2D m_Scale = FVector2D(1.0f, 1.0f);
+	FVector2D m_Skew = FVector2D::ZeroVector;
 	float	  m_Rotation = 0;
 
 	FColor			m_Color = FColor::White;
@@ -53,7 +54,8 @@ protected:
 
 	// 自有渲染变换（替代 SWidget 的 RenderTransform）
 	TOptional<FSlateRenderTransform> m_RenderTransform;
-	FVector2D						 m_RenderTransformPivot = FVector2D(0.5f, 0.5f);
+	// 与 UGObject::Pivot 默认值(0,0)保持一致，否则 pivot 为 (0,0) 的元素在 SetPivot 中被短路跳过，导致负 scale 镜像轴心错误
+	FVector2D						 m_RenderTransformPivot = FVector2D(0.0f, 0.0f);
 
 	// 是否裁剪到边界
 	bool m_bClipToBounds = false;

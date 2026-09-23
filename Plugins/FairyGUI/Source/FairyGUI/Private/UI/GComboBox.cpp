@@ -239,12 +239,18 @@ UGObject* UGComboBox::GetDropdown() const
 	return DropdownObject;
 }
 
+void UGComboBox::EnableSyncDropdownWidth(bool bEnable)
+{
+	bSyncDropdownWidth = bEnable;
+}
+
 void UGComboBox::ShowDropdown()
 {
 	UpdateDropdownList();
 	if (ListObject->GetSelectionMode() == EListSelectionMode::Single)
 		ListObject->SetSelectedIndex(-1);
-	DropdownObject->SetWidth(Size.X);
+	if (bSyncDropdownWidth)
+		DropdownObject->SetWidth(Size.X);
 	ListObject->EnsureBoundsCorrect();
 
 	GetUIRoot()->TogglePopup(DropdownObject, this, PopupDirection);

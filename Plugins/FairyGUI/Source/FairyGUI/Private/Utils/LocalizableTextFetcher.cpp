@@ -352,7 +352,7 @@ void FLocalizableTextFetcher::FetchLocalizableTextsFromTransitionValue(const FSt
 	{
 		auto Str = Buffer.ReadS();
 		if (!Str.IsEmpty())
-			OutTexts.Add(FString::Printf(TEXT("%s_%s_trans_text"), *OwnerID, *TransName, *TargetID), Str);
+			OutTexts.Add(FString::Printf(TEXT("%s_%s_trans_text"), *OwnerID, *TransName), Str);
 	}
 }
 

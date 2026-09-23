@@ -10,111 +10,114 @@ class UGList;
 UCLASS(BlueprintType, Blueprintable)
 class FAIRYGUI_API UGComboBox : public UGComponent
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    UGComboBox();
-    virtual ~UGComboBox();
-    virtual void Dispose() override;
+	UGComboBox();
+	virtual ~UGComboBox();
+	virtual void Dispose() override;
+
+	UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+	FText GetTitle() const;
+	UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+	void SetTitle(const FText& InTitle);
+
+	virtual FText GetText() const override;
+	virtual void  SetText(const FText& InText) override;
+
+	virtual const FString& GetIcon() const override;
+	virtual void		   SetIcon(const FString& InIcon) override;
+
+	UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+	FColor GetTitleColor() const;
+	UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+	void SetTitleColor(const FColor& InColor);
+
+	UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+	int32 GetTitleFontSize() const;
+	UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+	void SetTitleFontSize(int32 InFontSize);
+
+	UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+	const FString& GetValue() const;
+	UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+	void SetValue(const FString& InValue);
+
+	UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+	int32 GetSelectedIndex() const;
+	UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+	void SetSelectedIndex(int32 InIndex);
+
+	UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+	UGController* GetSelectionController() const;
+	UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+	void SetSelectionController(UGController* InController);
+
+	UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+	UGObject* GetDropdown() const;
 
     UFUNCTION(BlueprintCallable, Category = "FairyGUI")
-    FText GetTitle() const;
-    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
-    void SetTitle(const FText& InTitle);
+	void EnableSyncDropdownWidth(bool bEnable);
 
-    virtual FText GetText() const override;
-    virtual void SetText(const FText& InText) override;
+	UFUNCTION(BlueprintCallable, Category = "FairyGUI")
+	void Refresh();
 
-    virtual const FString& GetIcon() const override;
-    virtual void SetIcon(const FString& InIcon) override;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FairyGUI")
+	int32 VisibleItemCount;
 
-    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
-    FColor GetTitleColor() const;
-    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
-    void SetTitleColor(const FColor& InColor);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FairyGUI")
+	EPopupDirection PopupDirection;
 
-    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
-    int32 GetTitleFontSize() const;
-    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
-    void SetTitleFontSize(int32 InFontSize);
+	UGTextField* GetTextField() const;
 
-    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
-    const FString& GetValue() const;
-    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
-    void SetValue(const FString& InValue);
+	virtual FNVariant GetProp(EObjectPropID PropID) const override;
+	virtual void	  SetProp(EObjectPropID PropID, const FNVariant& InValue) override;
 
-    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
-    int32 GetSelectedIndex() const;
-    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
-    void SetSelectedIndex(int32 InIndex);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FairyGUI")
+	TArray<FText> Items;
 
-    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
-    UGController* GetSelectionController() const;
-    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
-    void SetSelectionController(UGController* InController);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FairyGUI")
+	TArray<FString> Icons;
 
-    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
-    UGObject* GetDropdown() const;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FairyGUI")
+	TArray<FString> Values;
 
-    UFUNCTION(BlueprintCallable, Category = "FairyGUI")
-    void Refresh();
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FairyGUI")
-    int32 VisibleItemCount;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FairyGUI")
-    EPopupDirection PopupDirection;
-
-    UGTextField* GetTextField() const;
-
-    virtual FNVariant GetProp(EObjectPropID PropID) const override;
-    virtual void SetProp(EObjectPropID PropID, const FNVariant& InValue) override;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FairyGUI")
-    TArray<FText> Items;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FairyGUI")
-    TArray<FString> Icons;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FairyGUI")
-    TArray<FString> Values;
-
-    UPROPERTY(BlueprintAssignable, Category = "FairyGUI|Event")
-    FGUIEventDynMDelegate OnChanged;
+	UPROPERTY(BlueprintAssignable, Category = "FairyGUI|Event")
+	FGUIEventDynMDelegate OnChanged;
 
 protected:
-    virtual void ConstructExtension(FByteBuffer* Buffer);
-    virtual void SetupAfterAdd(FByteBuffer* Buffer, int32 BeginPos) override;
+	virtual void ConstructExtension(FByteBuffer* Buffer);
+	virtual void SetupAfterAdd(FByteBuffer* Buffer, int32 BeginPos) override;
 
-    virtual void HandleControllerChanged(UGController* Controller) override;
-    virtual void HandleGrayedChanged() override;
+	virtual void HandleControllerChanged(UGController* Controller) override;
+	virtual void HandleGrayedChanged() override;
 
-    void SetState(const FString& InState);
-    void SetCurrentState();
-    void UpdateSelectionController();
-    void UpdateDropdownList();
-    virtual void ShowDropdown();
-    virtual void RenderDropdownList();
+	void		 SetState(const FString& InState);
+	void		 SetCurrentState();
+	void		 UpdateSelectionController();
+	void		 UpdateDropdownList();
+	virtual void ShowDropdown();
+	virtual void RenderDropdownList();
 
-    UPROPERTY(Transient)
-    UGComponent* DropdownObject;
-    UGObject* TitleObject;
-    UGObject* IconObject;
-    UGList* ListObject;
-    UGController* SelectionController;
+	UPROPERTY(Transient)
+	UGComponent*  DropdownObject;
+	UGObject*	  TitleObject;
+	UGObject*	  IconObject;
+	UGList*		  ListObject;
+	UGController* SelectionController;
 
 private:
+	void OnClickItem(UEventContext* Context);
+	void OnRollOverHandler(UEventContext* Context);
+	void OnRollOutHandler(UEventContext* Context);
+	void OnTouchBeginHandler(UEventContext* Context);
+	void OnTouchEndHandler(UEventContext* Context);
+	void OnPopupWinClosed(UEventContext* Context);
 
-    void OnClickItem(UEventContext* Context);
-    void OnRollOverHandler(UEventContext* Context);
-    void OnRollOutHandler(UEventContext* Context);
-    void OnTouchBeginHandler(UEventContext* Context);
-    void OnTouchEndHandler(UEventContext* Context);
-    void OnPopupWinClosed(UEventContext* Context);
-
-    bool bItemsUpdated;
-    int32 SelectedIndex;
-    UGController* ButtonController;
-    bool bDown;
-    bool bOver;
+	bool		  bItemsUpdated;
+	int32		  SelectedIndex;
+	UGController* ButtonController;
+	bool		  bDown;
+	bool		  bOver;
+	bool		  bSyncDropdownWidth = true;
 };

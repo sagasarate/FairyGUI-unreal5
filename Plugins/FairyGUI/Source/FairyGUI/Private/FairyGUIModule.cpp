@@ -21,7 +21,7 @@ void FFairyGUIModule::StartupModule()
 
 #if WITH_EDITOR
     // Editor 尚未加载，推迟到引擎初始化完成后注册
-    FCoreDelegates::OnPostEngineInit.AddRaw(this, &FFairyGUIModule::OnPostEngineInit);
+    FCoreDelegates::GetOnPostEngineInit().AddRaw(this, &FFairyGUIModule::OnPostEngineInit);
 #endif
 
     // 注册引擎关闭回调（所有构建类型）

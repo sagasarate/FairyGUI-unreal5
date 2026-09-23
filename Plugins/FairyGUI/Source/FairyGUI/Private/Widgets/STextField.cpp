@@ -640,7 +640,8 @@ void STextField::BuildGlyphs()
 					}
 					else if (BreasPos == 0)
 					{
-						if (pCurLine->Blocks.Num() == 0)
+						// 首元素且字段窄到连一个字符都放不下时 pCurLine 还是 nullptr
+						if (pCurLine == nullptr || pCurLine->Blocks.Num() == 0)
 						{
 							UE_LOG(LogFairyGUI, Warning,
 								TEXT("field width(%f) can not accommodate even one character!"), GetWidth());
@@ -906,7 +907,8 @@ void STextField::BuildLineBlockMesh(
 		int32 CharCount = pBlock->Chars.Num();
 		if (StartChar >= CharCount)
 			return;
-		if (pBlock->Width > RBound - LBound)
+		// 块尾部超出右界就需要裁剪（多块行中每个块都不宽，但起点靠后时会超出）
+		if (X + pBlock->Width > RBound)
 		{
 			int32 EndChar = StartChar;
 			float EndX = X;
@@ -1017,26 +1019,31 @@ void STextField::DoEllipsis()
 {
 	float LetterSpacing = m_TextFormat.LetterSpacing * m_FontSizeScale;
 	float LineSpacing = (m_TextFormat.LineSpacing - 1) * m_FontSizeScale;
-	float FieldWidth = GetWidth();
-	float FieldHeight = GetHeight();
+	// 可用文本区域需扣除四周 GUTTER，与 GetMaxFieldWidth/BuildMesh 的排版边界保持一致
+	float FieldWidth = GetWidth() - GUTTER_X * 2;
+	float FieldHeight = GetHeight() - GUTTER_Y * 2;
 	if (m_Lines.Num())
 	{
+		// 逐行累加高度（行间有 LineSpacing），找出能放进 FieldHeight 的行
+		int32 OriginalLineCount = m_Lines.Num();
 		auto pLineInfo = m_Lines[0];
 		{
 			float Height = pLineInfo->Height;
 			int32 i = 1;
 			for (; i < m_Lines.Num(); i++)
 			{
-				if (Height + m_Lines[i]->Height > FieldHeight)
+				if (Height + LineSpacing + m_Lines[i]->Height > FieldHeight)
 					break;
 				pLineInfo = m_Lines[i];
-				Height += pLineInfo->Height + LineSpacing;
+				Height += LineSpacing + pLineInfo->Height;
 			}
 			for (int32 j = i; j < m_Lines.Num(); j++)
 				LineInfo::Return(m_Lines[j]);
 			m_Lines.SetNum(i);
 		}
-		if (pLineInfo->Width > FieldWidth)
+		// 裁掉了后续行时，最后一行也要显示省略号（行本身不超宽，但内容被裁）
+		bool bLineTrimmed = m_Lines.Num() < OriginalLineCount;
+		if (pLineInfo->Width > FieldWidth || bLineTrimmed)
 		{
 			FName CurFontName = G_DEFAULT_FONT_NAME;
 			if (!m_TextFormat.Face.IsNone())
@@ -1049,6 +1056,7 @@ void STextField::DoEllipsis()
 				return;
 			m_GlyphSequences.Add(pEllipsisGlyphSequence);
 			float Width = 0;
+			// 累计省略号自身宽度（含内部字间距）
 			for (int32 i = 0; i < pEllipsisGlyphSequence->GetGlyphCount(); i++)
 			{
 				float GlyphWidth, GlyphHeight;
@@ -1056,56 +1064,103 @@ void STextField::DoEllipsis()
 				if (pEllipsisGlyphSequence->GetGlyph(i, GlyphWidth, GlyphHeight, CharIndex))
 				{
 					Width += GlyphWidth * m_FontSizeScale;
+					if (i)
+						Width += LetterSpacing;
 				}
 			}
+			// 另预留省略号与前面内容之间的字间距
+			float EllipsisWidth = Width + LetterSpacing;
 			int32 BlockIndex = 0;
 			int32 CharIndex = 0;
-			for (; BlockIndex < pLineInfo->Blocks.Num(); BlockIndex++)
+			bool bOver = false;
+			while (BlockIndex < pLineInfo->Blocks.Num())
 			{
 				auto pBlock = pLineInfo->Blocks[BlockIndex];
-				for (; CharIndex < pBlock->Chars.Num(); CharIndex++)
+				for (CharIndex = 0; CharIndex < pBlock->Chars.Num(); CharIndex++)
 				{
 					Width += pBlock->Chars[CharIndex]->Width;
 					if (BlockIndex || CharIndex)
 						Width += LetterSpacing;
-					if (Width > FieldWidth)
+					if (Width + EllipsisWidth > FieldWidth)
+					{
+						// 当前字符放不下省略号，从这里截断（含当前字符之前的内容）
+						bOver = true;
 						break;
+					}
 				}
+				if (bOver || CharIndex < pBlock->Chars.Num())
+					break;
+				BlockIndex++;
 			}
 			for (int32 i = BlockIndex + 1; i < pLineInfo->Blocks.Num(); i++)
-				LineCharInfo::Return(pLineInfo->Blocks[i]->Chars);
-			if (BlockIndex < pLineInfo->Blocks.Num())
+				LineBlock::Return(pLineInfo->Blocks[i]); // Clear 会连同 Chars 一起归还
+			// 逐字符口径下整行 + 省略号都放得下（行宽判定超出是尾随字间距口径差），无需截断
+			bool bSkipTruncate = false;
+			if (!bOver && BlockIndex >= pLineInfo->Blocks.Num())
+			{
+				// 因裁行进入本分支的，行内容无需截断，直接在行尾追加省略号
+				if (!bLineTrimmed)
+					return;
+				bSkipTruncate = true;
+			}
+			if (!bSkipTruncate && BlockIndex < pLineInfo->Blocks.Num())
 			{
 				auto pBlock = pLineInfo->Blocks[BlockIndex];
-				for (int32 i = CharIndex; i < pBlock->Chars.Num(); i++)
-					LineCharInfo::Return(pBlock->Chars[CharIndex]);
 				if (CharIndex)
 				{
+					// 归还被截掉的字符（从 CharIndex 到末尾），保留块
+					for (int32 i = CharIndex; i < pBlock->Chars.Num(); i++)
+						LineCharInfo::Return(pBlock->Chars[i]);
 					pBlock->Chars.SetNum(CharIndex);
 					pLineInfo->Blocks.SetNum(BlockIndex + 1);
 				}
 				else
 				{
+					// 第一个字符就放不下，整块移除（Clear 会归还块内全部字符）
+					LineBlock::Return(pBlock);
 					pLineInfo->Blocks.SetNum(BlockIndex);
 				}
 			}
 			AddCharBlockToLine(pLineInfo, nullptr, pEllipsisGlyphSequence, 0, LineHeight, LetterSpacing);
 			pLineInfo->Width = 0;
 			pLineInfo->Height = 0;
+			pLineInfo->Baseline = 0;
 			for (int32 i = 0; i < pLineInfo->Blocks.Num(); i++)
 			{
 				auto pBlock = pLineInfo->Blocks[i];
-				for (int32 j = 0; i < pBlock->Chars.Num(); j++)
+				// 截断后块的宽度也是旧值，必须重算，否则 BuildMesh 用它推进 X 会把省略号推出框外
+				pBlock->Width = 0;
+				for (int32 j = 0; j < pBlock->Chars.Num(); j++)
 				{
 					auto pChar = pBlock->Chars[j];
+					pBlock->Width += pChar->Width;
+					if (j)
+						pBlock->Width += LetterSpacing;
 					pLineInfo->Width += pChar->Width;
 					if (i || j)
 						pLineInfo->Width += LetterSpacing;
 					if (pChar->Height > pLineInfo->Height)
 						pLineInfo->Height = pChar->Height;
 				}
+				// 省略号块基线与原文字符混合对齐
+				if (pBlock->Baseline > pLineInfo->Baseline)
+					pLineInfo->Baseline = pBlock->Baseline;
 			}
 		}
+		// 裁剪后按剩余行重算文本总宽高，供 BuildMesh 垂直对齐使用
+		m_TextWidth = 0;
+		m_TextHeight = GUTTER_Y;
+		for (int32 i = 0; i < m_Lines.Num(); i++)
+		{
+			auto pLine = m_Lines[i];
+			if (pLine->Width > m_TextWidth)
+				m_TextWidth = pLine->Width;
+			if (i)
+				m_TextHeight += LineSpacing;
+			m_TextHeight += pLine->Height;
+		}
+		m_TextWidth += GUTTER_X * 2;
+		m_TextHeight += GUTTER_Y;
 	}
 }
 
